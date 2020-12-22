@@ -1,0 +1,19 @@
+---
+- hosts: all_datacenters
+  connection: local
+  gather_facts: False
+
+  tasks:
+    - name: get facts list
+      # IOS facts module collects information about the IOS device
+      # nxos also has similar module
+      ios_facts:
+        gather_subset:
+        # only collect configuration, see online docs for full set of commands
+          - "config"
+      # store the output of ios_facts into my_facts variable
+      register: my_facts
+
+      # debug job to display the var (variable)
+    - debug:
+        var: my_facts.ansible_facts.ansible_net_config.splitlines()[0:20]

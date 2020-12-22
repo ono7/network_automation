@@ -1,0 +1,98 @@
+---
+- hosts: all_datacenters
+  connection: local
+  gather_facts: False
+  # strategy: linear #default
+  # strategy: free
+
+  # vars_files:
+  #   - infrastructure_servers.yml
+
+  tasks:
+
+    - name: get current ntp servers
+      ios_command:
+        commands:
+          - show run | i ntp server
+      register: current_ntp
+
+    # - debug:
+    #     var: current_ntp.stdout_lines
+
+    - name: get current dns servers
+      ios_command:
+        commands:
+          - show run | i name-server
+      register: current_dns
+
+    - name: deploy access list
+      ios_config:
+        lines:
+          - permit tcp any any eq 22
+          - permit udp any any eq domain
+          - deny   tcp host 192.162.1.2 any eq 8888
+          - permit udp 192.162.0.0 0.0.0.255 any eq 1821
+          - permit udp 192.162.0.0 0.0.0.255 any eq 1822
+        parents: ip access-list extended outside_in
+        match: exact
+        # before:
+        #   - interface GigabitEthernet1/0
+        #   - no ip access-group outside_in in
+        #   - no ip access-list extended outside_in
+        # after:
+        #   - interface GigabitEthernet1/0
+        #   - ip access-group outside_in in
+        before:
+          - no ip access-list extended outside_in
+        backup: yes
+
+    - name: archive log config
+      ios_config:
+        lines:
+          - logging enable
+          - logging size 1000
+          - notify syslog contenttype plaintext
+        parents:
+          - archive
+          - log config
+
+    - name: bind ACL to interface list
+      with_items: "{{ wan_interfaces }}"
+      ios_config:
+        lines:
+          - ip access-group outside_in in
+        parents: interface {{ item }}
+      when: wan_interfaces is defined
+
+    - name: deploy dns servers
+      with_items: "{{ global_servers.dns_servers }}"
+      ios_config:
+        lines:
+          - "{{ item }}"
+      when: global_servers.dns_servers is defined
+
+    - name: deploy ntp servers
+      with_items: "{{ global_servers.ntp_servers }}"
+      ios_config:
+        lines:
+          - "{{ item }}"
+      when: global_servers.ntp_servers is defined
+
+    - name: remove non-compliant ntp servers
+      with_items: "{{ current_ntp.stdout_lines }}"
+      ios_config:
+        lines:
+          - no {{ item }}
+      when: '(item not in global_servers.ntp_servers) and ( current_ntp.stdout[0] != "" )'
+
+    - name: remove non-compliant dns servers
+      with_items: "{{ current_dns.stdout_lines }}"
+      ios_config:
+        lines:
+          - no {{ item }}
+      when: '(item not in global_servers.dns_servers) and ( current_dns.stdout[0] != "" )'
+
+    - name: save running to startup when modified
+      ios_config:
+        save_when: modified
+

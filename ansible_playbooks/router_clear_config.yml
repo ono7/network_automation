@@ -1,0 +1,75 @@
+---
+- hosts: all_datacenters
+  connection: local
+  gather_facts: False
+
+  # vars_files:
+  #   - infrastructure_servers.yml
+
+  tasks:
+
+    - name: get current ntp servers
+      ios_command:
+        commands:
+          - show run | i ntp server
+      register: current_ntp
+
+    # - debug:
+    #     var: current_ntp
+
+    - name: get current dns servers
+      ios_command:
+        commands:
+          - show run | i name-server
+      register: current_dns
+
+    # - debug:
+    #     var: current_dns
+    - name: get current access-lists
+      ios_command:
+        commands:
+          - show run | i ip access-list extended
+      register: current_acl
+
+    - name: remove archive log config
+      ios_config:
+        lines:
+          - no archive
+
+    - name: remove ACL from interfaces
+      with_items: "{{ wan_interfaces }}"
+      ios_config:
+        lines:
+          - no ip access-group outside_in in
+        parents: interface {{ item }}
+
+        # when: current_acl | length != 0
+        #
+      when: current_acl.stdout[0] != ""
+
+    - name: remove all access-lists
+      with_items: "{{ current_acl.stdout_lines }}"
+      ios_config:
+        lines:
+          - no {{ item }}
+      when: current_acl.stdout[0] != ""
+
+
+    - name: remove ntp servers
+      with_items: "{{ current_ntp.stdout_lines }}"
+      ios_config:
+        lines:
+          - no {{ item }}
+      when: current_ntp.stdout[0] != ""
+
+    - name: remove dns servers
+      with_items: "{{ current_dns.stdout_lines }}"
+      ios_config:
+        lines:
+          - no {{ item }}
+      when: current_dns.stdout[0] != ""
+
+    - name: save running to startup when modified
+      ios_config:
+        save_when: modified
+

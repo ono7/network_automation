@@ -1,0 +1,23 @@
+---
+- hosts: dc1east
+  connection: local
+  gather_facts: False
+
+  tasks:
+
+    - name: deploy access list acl-in
+      ios_config:
+        lines:
+          - permit tcp any any eq 22
+          - permit udp any any eq domain
+          - deny   ip host 4.2.2.2 any
+          - permit udp 192.162.0.0 0.0.0.255 any eq 1821
+          - permit tcp any host 2.2.2.2
+
+        parents:
+          - ip access-list extended acl-in
+        match: exact
+        before:
+          - no ip access-list extended acl-in
+
+

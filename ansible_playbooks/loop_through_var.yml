@@ -1,0 +1,30 @@
+---
+- hosts: all_datacenters # all_datacenters group defined in "inventory.cfg"
+  connection: local
+  gather_facts: False
+
+  tasks:
+
+    # put the output of: show run | i ntp server
+    # inside the my_var variable
+    - name: loop through show run output
+      ios_command:
+        commands:
+          - show run | i ntp server
+      register: my_var
+
+    # print contents of my_var.stdout_lines "list"
+    - debug:
+        var: my_var.stdout_lines
+
+    # loop through list my_var.stdout_lines
+    # {{ item }} becomes each list item as we loop through
+    - name: remove all dns servers
+      with_items: "{{ my_var.stdout_lines }}"
+      ios_config:
+        lines:
+          # as we loop "item" becomes an element in the list:
+          # e.g. {{ item }} = "name-server 8.8.8.8"
+          - no {{ item }}
+            # no name-server 8.8.8.8
+

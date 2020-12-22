@@ -1,0 +1,17 @@
+---
+- name: "backup configs"
+  hosts: all
+  gather_facts: False
+
+
+  tasks:
+
+    - name: "backup router configs"
+      nxos_command:
+        commands: show running-config
+      register: config
+
+    - name: copy config to file
+      copy:
+        src: "{{ config.stdout_lines[0] }}"
+        dest: "{{ ansible_hostname }}.cfg"

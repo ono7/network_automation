@@ -1,0 +1,27 @@
+---
+- hosts: all_datacenters
+  connection: local
+  gather_facts: False
+  # strategy: linear by default, this is worth looking into in ansible
+  # documentation
+  # strategy: free
+
+  tasks:
+    - name: get dns servers
+      ios_command:
+        commands:
+          - show run | i name-server
+      # put the contents of "show run | i name-server"
+      # inside my_commands variable
+      register: my_commands
+
+      # debug: msg= prints something on the screen
+      # {{ ansible_host }} is a varible containing the current host name ansible
+      # is working on.. format the message to be whatever you want on the screen
+    - debug: msg="{{ ansible_host }},true"
+      # loop through the contents of my_commands.stdout_lines list
+      with_items: "{{ my_commands.stdout_lines }}"
+      # if 8.8.8.8 is foudn on the loop, we run the debug: msg= line
+      # other wise debug is not executed
+      when: "'8.8.8.8' in item"
+
